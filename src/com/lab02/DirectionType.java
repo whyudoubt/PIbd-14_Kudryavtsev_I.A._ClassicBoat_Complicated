@@ -1,4 +1,4 @@
-package com.lab01;
+package com.lab02;
 
 public enum DirectionType {
     NONE(0),
@@ -19,9 +19,7 @@ public enum DirectionType {
 
     public static DirectionType fromInt(int value) {
         for (DirectionType dir : values()) {
-            if (dir.value == value) {
-                return dir;
-            }
+            if (dir.value == value) return dir;
         }
         return NONE;
     }
