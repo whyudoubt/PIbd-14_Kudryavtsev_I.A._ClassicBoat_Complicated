@@ -1,28 +1,32 @@
-package com.lab03;
+package com.lab04;
 
 import javax.swing.*;
+import javax.swing.border.TitledBorder;
 import java.awt.*;
 import java.util.Random;
 
 public class FormCompany extends JFrame {
     private AbstractCompany currentCompany;
+    private final StorageCompanies storage;
     private JPanel drawingPanel;
     private JTextField positionField;
     private JLabel statusLabel;
+    private JComboBox<String> companyCombo;
+    private JTextField companyNameField;
+    private JComboBox<CollectionType> collectionTypeCombo;
 
     public FormCompany() {
-        setTitle("Лабораторная работа №3 (усложнённая) - Гавань");
+        setTitle("Лабораторная работа №4 (усложнённая) - Гавань");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setSize(1000, 700);
         setLocationRelativeTo(null);
         setLayout(new BorderLayout());
 
-        // Создаём одну компанию (гавань) при запуске
-        ICollectionGenericObjects<DrawingBoat> collection = new MassiveGenericObjects<>();
-        currentCompany = new HarborCompany(800, 500, collection);
+        storage = new StorageCompanies();
+        currentCompany = null;
 
         createUI();
-        refreshDisplay();
+        updateCompanyList();
     }
 
     private void createUI() {
@@ -49,6 +53,49 @@ public class FormCompany extends JFrame {
         rightPanel.setPreferredSize(new Dimension(200, 500));
         rightPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
+        // Панель создания новой компании
+        JPanel createCompanyPanel = new JPanel();
+        createCompanyPanel.setLayout(new BoxLayout(createCompanyPanel, BoxLayout.Y_AXIS));
+        createCompanyPanel.setBorder(BorderFactory.createTitledBorder("Создать компанию"));
+
+        companyNameField = new JTextField();
+        companyNameField.setMaximumSize(new Dimension(180, 25));
+        companyNameField.setToolTipText("Введите название компании");
+        createCompanyPanel.add(companyNameField);
+        createCompanyPanel.add(Box.createRigidArea(new Dimension(0, 5)));
+
+        collectionTypeCombo = new JComboBox<>(CollectionType.values());
+        collectionTypeCombo.setMaximumSize(new Dimension(180, 25));
+        createCompanyPanel.add(collectionTypeCombo);
+        createCompanyPanel.add(Box.createRigidArea(new Dimension(0, 5)));
+
+        JButton createCompanyBtn = new JButton("Создать компанию");
+        createCompanyBtn.setAlignmentX(Component.CENTER_ALIGNMENT);
+        createCompanyBtn.addActionListener(e -> createCompany());
+        createCompanyPanel.add(createCompanyBtn);
+
+        rightPanel.add(createCompanyPanel);
+        rightPanel.add(Box.createRigidArea(new Dimension(0, 10)));
+
+        // Панель выбора компании
+        JPanel selectCompanyPanel = new JPanel();
+        selectCompanyPanel.setLayout(new BoxLayout(selectCompanyPanel, BoxLayout.Y_AXIS));
+        selectCompanyPanel.setBorder(BorderFactory.createTitledBorder("Выбрать компанию"));
+
+        companyCombo = new JComboBox<>();
+        companyCombo.setMaximumSize(new Dimension(180, 25));
+        companyCombo.addActionListener(e -> selectCompany());
+        selectCompanyPanel.add(companyCombo);
+        selectCompanyPanel.add(Box.createRigidArea(new Dimension(0, 5)));
+
+        JButton deleteCompanyBtn = new JButton("Удалить компанию");
+        deleteCompanyBtn.setAlignmentX(Component.CENTER_ALIGNMENT);
+        deleteCompanyBtn.addActionListener(e -> deleteCompany());
+        selectCompanyPanel.add(deleteCompanyBtn);
+
+        rightPanel.add(selectCompanyPanel);
+        rightPanel.add(Box.createRigidArea(new Dimension(0, 15)));
+
         // Кнопка добавления простой лодки
         JButton addSimpleBtn = new JButton("Добавить простую лодку");
         addSimpleBtn.setAlignmentX(Component.CENTER_ALIGNMENT);
@@ -63,7 +110,7 @@ public class FormCompany extends JFrame {
         rightPanel.add(addImprovedBtn);
         rightPanel.add(Box.createRigidArea(new Dimension(0, 10)));
 
-        // Кнопка генерации лодки (усложнение)
+        // Кнопка генерации лодки (усложнение из 3 лабы)
         JButton generateBtn = new JButton("🎲 Сгенерировать лодку");
         generateBtn.setAlignmentX(Component.CENTER_ALIGNMENT);
         generateBtn.addActionListener(e -> openGenerator());
@@ -99,6 +146,20 @@ public class FormCompany extends JFrame {
         rightPanel.add(transferBtn);
         rightPanel.add(Box.createRigidArea(new Dimension(0, 10)));
 
+        // Кнопка со всеми удаленными лодками
+        JButton showAllDeletedBtn = new JButton("Все удалённые лодки");
+        showAllDeletedBtn.setAlignmentX(Component.CENTER_ALIGNMENT);
+        showAllDeletedBtn.addActionListener(e -> showAllDeletedBoats());
+        rightPanel.add(showAllDeletedBtn);
+        rightPanel.add(Box.createRigidArea(new Dimension(0, 10)));
+
+        // Кнопка показа удалённых лодок (усложнение)
+        JButton showDeletedBtn = new JButton("Показать удалённую лодку");
+        showDeletedBtn.setAlignmentX(Component.CENTER_ALIGNMENT);
+        showDeletedBtn.addActionListener(e -> showDeletedBoat());
+        rightPanel.add(showDeletedBtn);
+        rightPanel.add(Box.createRigidArea(new Dimension(0, 10)));
+
         // Кнопка обновления
         JButton refreshBtn = new JButton("Обновить");
         refreshBtn.setAlignmentX(Component.CENTER_ALIGNMENT);
@@ -106,7 +167,7 @@ public class FormCompany extends JFrame {
         rightPanel.add(refreshBtn);
 
         // Статусная строка
-        statusLabel = new JLabel("Лодок в гавани: 0");
+        statusLabel = new JLabel("Нет выбранной компании");
         statusLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
         rightPanel.add(Box.createRigidArea(new Dimension(0, 20)));
         rightPanel.add(statusLabel);
@@ -114,18 +175,79 @@ public class FormCompany extends JFrame {
         add(rightPanel, BorderLayout.EAST);
     }
 
-    private void addSimpleBoat() {
-        if (currentCompany == null) return;
+    private void createCompany() {
+        String name = companyNameField.getText().trim();
+        if (name.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Введите название компании!", "Ошибка", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
 
-        // Диалог выбора цвета
+        CollectionType type = (CollectionType) collectionTypeCombo.getSelectedItem();
+        storage.addCompany(name, type, 800, 500);
+        updateCompanyList();
+        companyNameField.setText("");
+
+        JOptionPane.showMessageDialog(this, "Компания \"" + name + "\" создана!", "Успех", JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    private void deleteCompany() {
+        String selected = (String) companyCombo.getSelectedItem();
+        if (selected == null) {
+            JOptionPane.showMessageDialog(this, "Выберите компанию для удаления!", "Ошибка", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        int confirm = JOptionPane.showConfirmDialog(this,
+                "Удалить компанию \"" + selected + "\"?",
+                "Подтверждение",
+                JOptionPane.YES_NO_OPTION);
+
+        if (confirm == JOptionPane.YES_OPTION) {
+            storage.removeCompany(selected);
+            if (currentCompany != null && storage.getCompany(selected) == null) {
+                currentCompany = null;
+            }
+            updateCompanyList();
+            refreshDisplay();
+            JOptionPane.showMessageDialog(this, "Компания удалена!", "Успех", JOptionPane.INFORMATION_MESSAGE);
+        }
+    }
+
+    private void updateCompanyList() {
+        companyCombo.removeAllItems();
+        for (String key : storage.getCompanyKeys()) {
+            companyCombo.addItem(key);
+        }
+        if (companyCombo.getItemCount() > 0) {
+            companyCombo.setSelectedIndex(0);
+            selectCompany();
+        } else {
+            currentCompany = null;
+            statusLabel.setText("Нет выбранной компании");
+            drawingPanel.repaint();
+        }
+    }
+
+    private void selectCompany() {
+        String selected = (String) companyCombo.getSelectedItem();
+        if (selected != null) {
+            currentCompany = storage.getCompany(selected);
+            refreshDisplay();
+        }
+    }
+
+    private void addSimpleBoat() {
+        if (currentCompany == null) {
+            JOptionPane.showMessageDialog(this, "Сначала создайте или выберите компанию!", "Ошибка", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
         Color bodyColor = JColorChooser.showDialog(this, "Выберите цвет корпуса", Color.WHITE);
         if (bodyColor == null) {
-            // Если пользователь отменил, генерируем случайный цвет
             Random random = new Random();
             bodyColor = new Color(random.nextInt(256), random.nextInt(256), random.nextInt(256));
         }
 
-        // Диалог выбора количества вёсел
         String[] options = {"1 весло", "2 весла", "3 весла"};
         int choice = JOptionPane.showOptionDialog(this,
                 "Выберите количество вёсел",
@@ -135,10 +257,8 @@ public class FormCompany extends JFrame {
                 null,
                 options,
                 options[1]);
-
         int oarCount = choice + 1;
 
-        // Диалог выбора типа вёсел
         String[] oarTypes = {"Обычные", "С орнаментом", "Разноцветные"};
         int oarTypeChoice = JOptionPane.showOptionDialog(this,
                 "Выберите тип вёсел",
@@ -154,8 +274,6 @@ public class FormCompany extends JFrame {
         double weight = random.nextInt(2000) + 1000;
 
         DrawingBoat boat = new DrawingBoat(speed, weight, bodyColor);
-
-        // Создаём вёсла выбранного типа
         IOarDrawer oar = createOarDrawer(oarTypeChoice, oarCount);
         boat.setOarDrawer(oar);
 
@@ -168,27 +286,26 @@ public class FormCompany extends JFrame {
     }
 
     private void addImprovedBoat() {
-        if (currentCompany == null) return;
+        if (currentCompany == null) {
+            JOptionPane.showMessageDialog(this, "Сначала создайте или выберите компанию!", "Ошибка", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
 
-        // Диалог выбора цвета корпуса
         Color bodyColor = JColorChooser.showDialog(this, "Выберите цвет корпуса", Color.WHITE);
         if (bodyColor == null) {
             Random random = new Random();
             bodyColor = new Color(random.nextInt(256), random.nextInt(256), random.nextInt(256));
         }
 
-        // Диалог выбора цвета паруса
         Color sailColor = JColorChooser.showDialog(this, "Выберите цвет паруса", Color.WHITE);
         if (sailColor == null) {
             Random random = new Random();
             sailColor = new Color(random.nextInt(256), random.nextInt(256), random.nextInt(256));
         }
 
-        // Диалог выбора наличия паруса
         int hasSailChoice = JOptionPane.showConfirmDialog(this, "Добавить парус?", "Парус", JOptionPane.YES_NO_OPTION);
         boolean hasSail = (hasSailChoice == JOptionPane.YES_OPTION);
 
-        // Диалог выбора количества вёсел
         String[] options = {"1 весло", "2 весла", "3 весла"};
         int choice = JOptionPane.showOptionDialog(this,
                 "Выберите количество вёсел",
@@ -198,10 +315,8 @@ public class FormCompany extends JFrame {
                 null,
                 options,
                 options[1]);
-
         int oarCount = choice + 1;
 
-        // Диалог выбора типа вёсел
         String[] oarTypes = {"Обычные", "С орнаментом", "Разноцветные"};
         int oarTypeChoice = JOptionPane.showOptionDialog(this,
                 "Выберите тип вёсел",
@@ -217,8 +332,6 @@ public class FormCompany extends JFrame {
         double weight = random.nextInt(2000) + 1000;
 
         DrawingImprovedBoat boat = new DrawingImprovedBoat(speed, weight, bodyColor, sailColor, hasSail);
-
-        // Создаём вёсла выбранного типа
         IOarDrawer oar = createOarDrawer(oarTypeChoice, oarCount);
         boat.setOarDrawer(oar);
 
@@ -232,19 +345,22 @@ public class FormCompany extends JFrame {
 
     private IOarDrawer createOarDrawer(int type, int count) {
         OarCount oarCount = OarCount.fromInt(count);
-        switch (type) {
-            case 0: return new Oar(oarCount);
-            case 1: return new OarWithOrnament(oarCount);
-            default: return new OarWithColorfulBlade(oarCount);
-        }
+        return switch (type) {
+            case 0 -> new Oar(oarCount);
+            case 1 -> new OarWithOrnament(oarCount);
+            default -> new OarWithColorfulBlade(oarCount);
+        };
     }
 
     private void removeBoatByPosition() {
-        if (currentCompany == null) return;
+        if (currentCompany == null) {
+            JOptionPane.showMessageDialog(this, "Сначала выберите компанию!", "Ошибка", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
 
         String text = positionField.getText().trim();
         if (text.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Сначала введите номер позиции!", "Ошибка", JOptionPane.WARNING_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Введите номер позиции!", "Ошибка", JOptionPane.WARNING_MESSAGE);
             return;
         }
 
@@ -252,10 +368,16 @@ public class FormCompany extends JFrame {
             int position = Integer.parseInt(text);
             if (currentCompany.removeBoat(position)) {
                 refreshDisplay();
-                JOptionPane.showMessageDialog(this, "Лодка удалена с позиции " + position, "Успех", JOptionPane.INFORMATION_MESSAGE);
+                JOptionPane.showMessageDialog(this,
+                        "Лодка удалена с позиции " + position,
+                        "Успех",
+                        JOptionPane.INFORMATION_MESSAGE);
                 positionField.setText("");
             } else {
-                JOptionPane.showMessageDialog(this, "Не удалось удалить лодку! Неверная позиция или позиция пуста.", "Ошибка", JOptionPane.WARNING_MESSAGE);
+                JOptionPane.showMessageDialog(this,
+                        "Не удалось удалить лодку! Неверная позиция или позиция пуста.",
+                        "Ошибка",
+                        JOptionPane.WARNING_MESSAGE);
             }
         } catch (NumberFormatException e) {
             JOptionPane.showMessageDialog(this, "Введите корректное число!", "Ошибка", JOptionPane.WARNING_MESSAGE);
@@ -263,7 +385,10 @@ public class FormCompany extends JFrame {
     }
 
     private void transferBoatToTest() {
-        if (currentCompany == null) return;
+        if (currentCompany == null) {
+            JOptionPane.showMessageDialog(this, "Сначала выберите компанию!", "Ошибка", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
 
         DrawingBoat originalBoat = currentCompany.getRandomObject();
         if (originalBoat == null) {
@@ -271,27 +396,12 @@ public class FormCompany extends JFrame {
             return;
         }
 
-        // Создаём новую лодку с теми же параметрами (простое копирование)
-        DrawingBoat clonedBoat;
-        if (originalBoat instanceof DrawingImprovedBoat improved) {
-            clonedBoat = new DrawingImprovedBoat(
-                    improved.getSpeed(),
-                    improved.getWeight(),
-                    improved.getBodyColor(),
-                    improved.getSailColor(),
-                    improved.hasSail()
-            );
-            clonedBoat.setOarDrawer(improved.getOarDrawer());
-        } else {
-            clonedBoat = new DrawingBoat(
-                    originalBoat.getSpeed(),
-                    originalBoat.getWeight(),
-                    originalBoat.getBodyColor()
-            );
-            clonedBoat.setOarDrawer(originalBoat.getOarDrawer());
+        DrawingBoat clonedBoat = copyBoat(originalBoat);
+        if (clonedBoat == null) {
+            JOptionPane.showMessageDialog(this, "Не удалось скопировать лодку!", "Ошибка", JOptionPane.WARNING_MESSAGE);
+            return;
         }
 
-        // Сбрасываем позицию
         clonedBoat.setPosition(0, 0);
 
         FormBoat formBoat = new FormBoat();
@@ -299,10 +409,8 @@ public class FormCompany extends JFrame {
         formBoat.setVisible(true);
     }
 
-    // Вспомогательный метод для копирования лодки
     private DrawingBoat copyBoat(DrawingBoat original) {
         if (original instanceof DrawingImprovedBoat improved) {
-            // Копируем продвинутую лодку
             DrawingImprovedBoat copy = new DrawingImprovedBoat(
                     improved.getSpeed(),
                     improved.getWeight(),
@@ -313,7 +421,6 @@ public class FormCompany extends JFrame {
             copy.setOarDrawer(improved.getOarDrawer());
             return copy;
         } else {
-            // Копируем простую лодку
             DrawingBoat copy = new DrawingBoat(
                     original.getSpeed(),
                     original.getWeight(),
@@ -324,13 +431,46 @@ public class FormCompany extends JFrame {
         }
     }
 
+    private void showAllDeletedBoats() {
+        if (!storage.hasDeletedBoats()) {
+            JOptionPane.showMessageDialog(this, "Нет удалённых лодок!", "Информация", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        // Создаём диалог и показываем
+        FormDeletedBoats dialog = new FormDeletedBoats(this, storage);
+        dialog.setVisible(true);
+    }
+
+    private void showDeletedBoat() {
+        if (!storage.hasDeletedBoats()) {
+            JOptionPane.showMessageDialog(this,
+                    "Нет удалённых лодок!",
+                    "Информация",
+                    JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        DrawingBoat deletedBoat = storage.getLastDeletedBoat();
+        if (deletedBoat == null) return;
+
+        FormBoat formBoat = new FormBoat();
+        formBoat.setDrawingBoat(deletedBoat);
+        formBoat.setVisible(true);
+    }
+
     private void openGenerator() {
+        if (currentCompany == null) {
+            JOptionPane.showMessageDialog(this, "Сначала выберите компанию!", "Ошибка", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
         FormGenerator generator = new FormGenerator(this);
         generator.setVisible(true);
 
         if (generator.isBoatGenerated()) {
             DrawingBoat newBoat = generator.getGeneratedBoat();
-            if (newBoat != null && currentCompany != null) {
+            if (newBoat != null) {
                 currentCompany.addBoat(newBoat);
                 refreshDisplay();
                 JOptionPane.showMessageDialog(this,
@@ -345,6 +485,8 @@ public class FormCompany extends JFrame {
         drawingPanel.repaint();
         if (currentCompany != null) {
             statusLabel.setText("Лодок в гавани: " + currentCompany.getCountObjects());
+        } else {
+            statusLabel.setText("Нет выбранной компании");
         }
     }
 
