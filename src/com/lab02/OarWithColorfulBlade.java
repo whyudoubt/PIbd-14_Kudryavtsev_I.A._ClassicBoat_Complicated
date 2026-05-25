@@ -1,20 +1,43 @@
 package com.lab02;
 
 import java.awt.*;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 
 public class OarWithColorfulBlade implements IOarDrawer {
     private OarCount oarCount;
-    private Random random;
+    private final List<Color> bladeColors;
 
     public OarWithColorfulBlade(OarCount count) {
         this.oarCount = count;
-        this.random = new Random();
+        this.bladeColors = new ArrayList<>();
+
+        Random random = new Random();
+        for (int i = 0; i < oarCount.getValue(); i++) {
+            bladeColors.add(new Color(
+                    random.nextInt(256),
+                    random.nextInt(256),
+                    random.nextInt(256)
+            ));
+        }
     }
 
     @Override
     public void setOarCount(int value) {
-        this.oarCount = OarCount.fromInt(value);
+        OarCount newCount = OarCount.fromInt(value);
+        if (this.oarCount != newCount) {
+            this.oarCount = newCount;
+            bladeColors.clear();
+            Random random = new Random();
+            for (int i = 0; i < oarCount.getValue(); i++) {
+                bladeColors.add(new Color(
+                        random.nextInt(256),
+                        random.nextInt(256),
+                        random.nextInt(256)
+                ));
+            }
+        }
     }
 
     @Override
@@ -31,21 +54,18 @@ public class OarWithColorfulBlade implements IOarDrawer {
         int count = oarCount.getValue();
         int spacing = boatWidth / (count + 1);
 
-        for (int i = 1; i <= count; i++) {
-            int oarX = boatX + i * spacing;
+        for (int i = 0; i < count; i++) {
+            int oarX = boatX + (i + 1) * spacing;
             int oarYTop = boatY + boatHeight / 3;
             int oarYBottom = boatY + boatHeight * 2 / 3;
 
             g.drawLine(oarX, oarYTop, oarX - 15, oarYBottom);
 
-            // Разноцветная лопасть
-            Color bladeColor = new Color(random.nextInt(256), random.nextInt(256), random.nextInt(256));
+            Color bladeColor = bladeColors.get(i);
             g.setColor(bladeColor);
             g.fillOval(oarX - 18, oarYBottom - 4, 8, 8);
             g.setColor(Color.BLACK);
             g.drawOval(oarX - 18, oarYBottom - 4, 8, 8);
-
-            g.setColor(oarColor);
         }
     }
 }
