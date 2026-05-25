@@ -1,4 +1,4 @@
-package com.lab01;
+package com.lab02;
 
 public enum OarCount {
     ONE(1),
@@ -21,6 +21,6 @@ public enum OarCount {
                 return count;
             }
         }
-        return TWO; // значение по умолчанию
+        return TWO;
     }
 }

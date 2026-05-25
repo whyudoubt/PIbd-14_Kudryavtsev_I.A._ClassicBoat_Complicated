@@ -1,6 +1,5 @@
-package com.lab01;
+package com.lab02;
 
-import javax.swing.*;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 
@@ -12,6 +11,10 @@ public class CanvasForBoat {
     public void setPictureSize(int width, int height) {
         this.canvasWidth = width;
         this.canvasHeight = height;
+    }
+
+    public DrawingBoat getDrawingBoat() {
+        return drawingBoat;
     }
 
     public boolean insertBoat(DrawingBoat boat) {
